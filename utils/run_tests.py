@@ -37,27 +37,27 @@ for wav_file, txt_file in zip(wav_files, txt_files):
     result = [parse(x) for x in result if len(x) > 0]
     #print(result[0])
     result = set(result)
-    
+
     expected = open(txt_file).read().split('\n')
     expected = [parse(x) for x in expected if len(x) > 0]
     #print(expected[0])
     expected = set(expected)
-    
+
     extra_decodes = result - expected
     missed_decodes = expected - result
     print(len(result), '/', len(expected))
     if len(extra_decodes) > 0:
-        print('Extra decodes: ', list(extra_decodes))
+        print('Extra decodes: ', list(sorted(extra_decodes)))
     if len(missed_decodes) > 0:
-        print('Missed decodes: ', list(missed_decodes))
-    
+        print('Missed decodes: ', list(sorted(missed_decodes)))
+
     n_total += len(expected)
     n_extra += len(extra_decodes)
     n_missed += len(missed_decodes)
-    
+
     #break
 
-print('Total: %d, extra: %d (%.1f%%), missed: %d (%.1f%%)' % 
+print('Total: %d, extra: %d (%.1f%%), missed: %d (%.1f%%)' %
         (n_total, n_extra, 100.0*n_extra/n_total, n_missed, 100.0*n_missed/n_total))
 recall = (n_total - n_missed) / float(n_total)
 print('Recall: %.1f%%' % (100*recall, ))
