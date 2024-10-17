@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200809L
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -172,27 +173,27 @@ ftx_callsign_hash_interface_t hash_if = {
     .save_hash = hashtable_add
 };
 
-void test_std_msg(const char* call_to_tx, const char* call_de_tx, const char* extra_tx)
-{
-    ftx_message_t msg;
-    ftx_message_init(&msg);
+// void test_std_msg(const char* call_to_tx, const char* call_de_tx, const char* extra_tx)
+// {
+//     ftx_message_t msg;
+//     ftx_message_init(&msg);
 
-    ftx_message_rc_t rc_encode = ftx_message_encode_std(&msg, &hash_if, call_to_tx, call_de_tx, extra_tx);
-    CHECK(rc_encode == FTX_MESSAGE_RC_OK);
-    printf("Encoded [%s] [%s] [%s]\n", call_to_tx, call_de_tx, extra_tx);
+//     ftx_message_rc_t rc_encode = ftx_message_encode_std(&msg, &hash_if, call_to_tx, call_de_tx, extra_tx);
+//     CHECK(rc_encode == FTX_MESSAGE_RC_OK);
+//     printf("Encoded [%s] [%s] [%s]\n", call_to_tx, call_de_tx, extra_tx);
 
-    char call_to[14];
-    char call_de[14];
-    char extra[14];
-    ftx_message_rc_t rc_decode = ftx_message_decode_std(&msg, &hash_if, call_to, call_de, extra);
-    CHECK(rc_decode == FTX_MESSAGE_RC_OK);
-    printf("Decoded [%s] [%s] [%s]\n", call_to, call_de, extra);
-    CHECK(0 == strcmp(call_to, call_to_tx));
-    CHECK(0 == strcmp(call_de, call_de_tx));
-    CHECK(0 == strcmp(extra, extra_tx));
-    // CHECK(1 == 2);
-    TEST_END;
-}
+//     ftx_message_tokens_t tokens;
+//     ftx_message_rc_t rc_decode = ftx_message_decode_std_tokens(&msg, &hash_if, &tokens);
+//     CHECK(rc_decode == FTX_MESSAGE_RC_OK);
+//      // TODO: fix logging
+//     printf("Decoded [%s]\n", ftx_message_tokens_to_str(&tokens));
+//     ftx_message_tokens_free(&tokens);
+//     // CHECK(0 == strcmp(call_to, call_to_tx));
+//     // CHECK(0 == strcmp(call_de, call_de_tx));
+//     // CHECK(0 == strcmp(extra, extra_tx));
+//     CHECK(1 == 2);
+//     TEST_END;
+// }
 
 void test_msg(const char* call_to_tx, const char* call_de_tx, const char* extra_tx)
 {
@@ -212,16 +213,17 @@ void test_msg(const char* call_to_tx, const char* call_de_tx, const char* extra_
     ftx_message_init(&msg);
 
     ftx_message_rc_t rc_encode = ftx_message_encode(&msg, NULL, message_text);
+    printf("rc_decode: %u\n", rc_encode);
     CHECK(rc_encode == FTX_MESSAGE_RC_OK);
 
-    char call_to[14];
-    char call_de[14];
-    char extra[14];
-    ftx_message_rc_t rc_decode = ftx_message_decode_std(&msg, NULL, call_to, call_de, extra);
+    ftx_message_tokens_t tokens;
+    ftx_message_rc_t rc_decode = ftx_message_decode_std_tokens(&msg, &hash_if, &tokens);
     CHECK(rc_decode == FTX_MESSAGE_RC_OK);
-    CHECK(0 == strcmp(call_to, call_to_tx));
-    CHECK(0 == strcmp(call_de, call_de_tx));
-    CHECK(0 == strcmp(extra, extra_tx));
+    char decoded_text[FTX_MAX_MESSAGE_LENGTH];
+    ftx_message_tokens_to_str(&tokens, &decoded_text);
+    printf("Decoded text: %p, '%s'\n", decoded_text, decoded_text);
+    ftx_message_tokens_free(&tokens);
+    CHECK(0 == strcmp(decoded_text, message_text));
     // CHECK(1 == 2);
     TEST_END;
 }
@@ -242,14 +244,14 @@ int main()
         {
             for (int idx_callsign2 = 0; idx_callsign2 < SIZEOF_ARRAY(callsigns); ++idx_callsign2)
             {
-                test_std_msg(callsigns[idx_callsign], callsigns[idx_callsign2], grids[idx_grid]);
+                test_msg(callsigns[idx_callsign], callsigns[idx_callsign2], grids[idx_grid]);
             }
         }
         for (int idx_token = 0; idx_token < SIZEOF_ARRAY(tokens); ++idx_token)
         {
             for (int idx_callsign2 = 0; idx_callsign2 < SIZEOF_ARRAY(callsigns); ++idx_callsign2)
             {
-                test_std_msg(tokens[idx_token], callsigns[idx_callsign2], grids[idx_grid]);
+                test_msg(tokens[idx_token], callsigns[idx_callsign2], grids[idx_grid]);
             }
         }
     }

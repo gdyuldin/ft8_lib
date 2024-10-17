@@ -78,6 +78,40 @@ typedef enum
     FTX_MESSAGE_RC_ERROR_TYPE
 } ftx_message_rc_t;
 
+// FTX token types (for later logic)
+typedef enum {
+    FTX_TOKEN_CQ,
+    FTX_TOKEN_CQ_MOD_INT,
+    FTX_TOKEN_CQ_MOD_TEXT,
+    FTX_TOKEN_DE,
+    FTX_TOKEN_QRZ,
+    FTX_TOKEN_CALLSIGN,
+    FTX_TOKEN_CALLSIGN_HASH_FOUND,
+    FTX_TOKEN_CALLSIGN_HASH_NOT_FOUND,
+    FTX_TOKEN_GRID,
+    FTX_TOKEN_RRR,
+    FTX_TOKEN_RR73,
+    FTX_TOKEN_73,
+    FTX_TOKEN_RREPORT,
+    FTX_TOKEN_REPORT,
+    FTX_TOKEN_FREE_TEXT,
+    FTX_TOKEN_TELEMETRY_HEX,
+} ftx_token_type_t;
+
+typedef struct {
+    union {
+        const char* token;
+        int32_t     int_val;
+    };
+    ftx_token_type_t type;
+} ftx_message_token_t;
+
+typedef struct {
+    ftx_message_token_t items[10];
+    uint8_t count;
+    uint8_t max_size;
+} ftx_message_tokens_t;
+
 // Callsign types and sizes:
 // * Std. call (basecall) - 1-2 letter/digit prefix (at least one letter), 1 digit area code, 1-3 letter suffix,
 //                          total 3-6 chars (exception: 7 character calls with prefixes 3DA0- and 3XA..3XZ-)
@@ -105,16 +139,21 @@ ftx_message_rc_t ftx_message_encode_std(ftx_message_t* msg, ftx_callsign_hash_in
 /// Pack Type 4 (One nonstandard call and one hashed call) message
 ftx_message_rc_t ftx_message_encode_nonstd(ftx_message_t* msg, ftx_callsign_hash_interface_t* hash_if, const char* call_to, const char* call_de, const char* extra);
 
-void ftx_message_encode_free(const char* text);
-void ftx_message_encode_telemetry_hex(const char* telemetry_hex);
-void ftx_message_encode_telemetry(const uint8_t* telemetry);
+// void ftx_message_encode_free(const char* text);
+// void ftx_message_encode_telemetry_hex(const char* telemetry_hex);
+// void ftx_message_encode_telemetry(const uint8_t* telemetry);
+
+ftx_message_rc_t ftx_message_decode_tokens(const ftx_message_t* msg, ftx_callsign_hash_interface_t* hash_if, ftx_message_tokens_t* result);
+ftx_message_rc_t ftx_message_decode_std_tokens(const ftx_message_t* msg, ftx_callsign_hash_interface_t* hash_if, ftx_message_tokens_t* tokens);
+ftx_message_rc_t ftx_message_decode_nonstd_tokens(const ftx_message_t* msg, ftx_callsign_hash_interface_t* hash_if, ftx_message_tokens_t* tokens);
+void ftx_message_decode_free_tokens(const ftx_message_t* msg, ftx_message_tokens_t* tokens);
+void ftx_message_decode_telemetry_hex_tokens(const ftx_message_t* msg, ftx_message_tokens_t* tokens);
+void ftx_message_decode_telemetry(const ftx_message_t* msg, uint8_t* telemetry);
 
 ftx_message_rc_t ftx_message_decode(const ftx_message_t* msg, ftx_callsign_hash_interface_t* hash_if, char* message);
-ftx_message_rc_t ftx_message_decode_std(const ftx_message_t* msg, ftx_callsign_hash_interface_t* hash_if, char* call_to, char* call_de, char* extra);
-ftx_message_rc_t ftx_message_decode_nonstd(const ftx_message_t* msg, ftx_callsign_hash_interface_t* hash_if, char* call_to, char* call_de, char* extra);
-void ftx_message_decode_free(const ftx_message_t* msg, char* text);
-void ftx_message_decode_telemetry_hex(const ftx_message_t* msg, char* telemetry_hex);
-void ftx_message_decode_telemetry(const ftx_message_t* msg, uint8_t* telemetry);
+
+void ftx_message_tokens_to_str(ftx_message_tokens_t *tokens, char * text);
+void ftx_message_tokens_free(ftx_message_tokens_t *tokens);
 
 #ifdef FTX_DEBUG_PRINT
 void ftx_message_print(ftx_message_t* msg);

@@ -51,7 +51,7 @@ char* append_string(char* string, const char* token);
 int dd_to_int(const char* str, int length);
 
 // Convert a 2 digit integer to string
-void int_to_dd(char* str, int value, int width, bool full_sign);
+char * int_to_dd(char* str, int value, int width, bool full_sign);
 
 typedef enum
 {
