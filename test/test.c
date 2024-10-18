@@ -8,6 +8,7 @@
 #include "ft8/text.h"
 #include "ft8/encode.h"
 #include "ft8/constants.h"
+#include "ft8/hashtable.h"
 
 #include "fft/kiss_fftr.h"
 #include "common/common.h"
@@ -111,68 +112,6 @@ void test3() {
 
 #define TEST_END printf("Test OK\n\n")
 
-#define CALLSIGN_HASHTABLE_SIZE 256
-
-struct
-{
-    char callsign[12];
-    uint32_t hash;
-} callsign_hashtable[CALLSIGN_HASHTABLE_SIZE];
-
-void hashtable_init(void)
-{
-    // for (int idx = 0; idx < CALLSIGN_HASHTABLE_SIZE; ++idx)
-    // {
-    //     callsign_hashtable[idx]->callsign[0] = '\0';
-    // }
-    memset(callsign_hashtable, 0, sizeof(callsign_hashtable));
-}
-
-void hashtable_add(const char* callsign, uint32_t hash)
-{
-    int idx_hash = (hash * 23) % CALLSIGN_HASHTABLE_SIZE;
-    while (callsign_hashtable[idx_hash].callsign[0] != '\0')
-    {
-        if ((callsign_hashtable[idx_hash].hash == hash) && (0 == strcmp(callsign_hashtable[idx_hash].callsign, callsign)))
-        {
-            LOG(LOG_DEBUG, "Found a duplicate [%s]\n", callsign);
-            return;
-        }
-        else
-        {
-            LOG(LOG_DEBUG, "Hash table clash!\n");
-            // Move on to check the next entry in hash table
-            idx_hash = (idx_hash + 1) % CALLSIGN_HASHTABLE_SIZE;
-        }
-    }
-    strncpy(callsign_hashtable[idx_hash].callsign, callsign, 11);
-    callsign_hashtable[idx_hash].callsign[11] = '\0';
-    callsign_hashtable[idx_hash].hash = hash;
-}
-
-bool hashtable_lookup(ftx_callsign_hash_type_t hash_type, uint32_t hash, char* callsign)
-{
-    uint32_t hash_mask = (hash_type == FTX_CALLSIGN_HASH_10_BITS) ? 0x3FFu : (hash_type == FTX_CALLSIGN_HASH_12_BITS ? 0xFFFu : 0x3FFFFFu);
-    int idx_hash = (hash * 23) % CALLSIGN_HASHTABLE_SIZE;
-    while (callsign_hashtable[idx_hash].callsign[0] != '\0')
-    {
-        if ((callsign_hashtable[idx_hash].hash & hash_mask) == hash)
-        {
-            strcpy(callsign, callsign_hashtable[idx_hash].callsign);
-            return true;
-        }
-        // Move on to check the next entry in hash table
-        idx_hash = (idx_hash + 1) % CALLSIGN_HASHTABLE_SIZE;
-    }
-    callsign[0] = '\0';
-    return false;
-}
-
-ftx_callsign_hash_interface_t hash_if = {
-    .lookup_hash = hashtable_lookup,
-    .save_hash = hashtable_add
-};
-
 // void test_std_msg(const char* call_to_tx, const char* call_de_tx, const char* extra_tx)
 // {
 //     ftx_message_t msg;
@@ -232,6 +171,7 @@ void test_msg(const char* call_to_tx, const char* call_de_tx, const char* extra_
 
 int main()
 {
+    hashtable_init(256);
     // test1();
     // test4();
     const char* callsigns[] = { "YL3JG", "W1A", "W1A/R", "W5AB", "W8ABC", "DE6ABC", "DE6ABC/R", "DE7AB", "DE9A", "3DA0X", "3DA0XYZ", "3DA0XYZ/R", "3XZ0AB", "3XZ0A" };

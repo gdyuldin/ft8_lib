@@ -9,6 +9,7 @@
 #include <ft8/decode.h>
 #include <ft8/encode.h>
 #include <ft8/message.h>
+#include <ft8/hashtable.h>
 
 #include <common/common.h>
 #include <common/wave.h>
@@ -36,96 +37,6 @@ void usage(const char* error_msg)
     fprintf(stderr, "Usage: decode_ft8 [-list|([-ft4] [INPUT|-dev DEVICE])]\n\n");
     fprintf(stderr, "Decode a 15-second (or slighly shorter) WAV file.\n");
 }
-
-#define CALLSIGN_HASHTABLE_SIZE 256
-
-static struct
-{
-    char callsign[12]; ///> Up to 11 symbols of callsign + trailing zeros (always filled)
-    uint32_t hash;     ///> 8 MSBs contain the age of callsign; 22 LSBs contain hash value
-} callsign_hashtable[CALLSIGN_HASHTABLE_SIZE];
-
-static int callsign_hashtable_size;
-
-void hashtable_init(void)
-{
-    callsign_hashtable_size = 0;
-    memset(callsign_hashtable, 0, sizeof(callsign_hashtable));
-}
-
-void hashtable_cleanup(uint8_t max_age)
-{
-    for (int idx_hash = 0; idx_hash < CALLSIGN_HASHTABLE_SIZE; ++idx_hash)
-    {
-        if (callsign_hashtable[idx_hash].callsign[0] != '\0')
-        {
-            uint8_t age = (uint8_t)(callsign_hashtable[idx_hash].hash >> 24);
-            if (age > max_age)
-            {
-                LOG(LOG_INFO, "Removing [%s] from hash table, age = %d\n", callsign_hashtable[idx_hash].callsign, age);
-                // free the hash entry
-                callsign_hashtable[idx_hash].callsign[0] = '\0';
-                callsign_hashtable[idx_hash].hash = 0;
-                callsign_hashtable_size--;
-            }
-            else
-            {
-                // increase callsign age
-                callsign_hashtable[idx_hash].hash = (((uint32_t)age + 1u) << 24) | (callsign_hashtable[idx_hash].hash & 0x3FFFFFu);
-            }
-        }
-    }
-}
-
-void hashtable_add(const char* callsign, uint32_t hash)
-{
-    uint16_t hash10 = (hash >> 12) & 0x3FFu;
-    int idx_hash = (hash10 * 23) % CALLSIGN_HASHTABLE_SIZE;
-    while (callsign_hashtable[idx_hash].callsign[0] != '\0')
-    {
-        if (((callsign_hashtable[idx_hash].hash & 0x3FFFFFu) == hash) && (0 == strcmp(callsign_hashtable[idx_hash].callsign, callsign)))
-        {
-            // reset age
-            callsign_hashtable[idx_hash].hash &= 0x3FFFFFu;
-            LOG(LOG_DEBUG, "Found a duplicate [%s]\n", callsign);
-            return;
-        }
-        else
-        {
-            LOG(LOG_DEBUG, "Hash table clash!\n");
-            // Move on to check the next entry in hash table
-            idx_hash = (idx_hash + 1) % CALLSIGN_HASHTABLE_SIZE;
-        }
-    }
-    callsign_hashtable_size++;
-    strncpy(callsign_hashtable[idx_hash].callsign, callsign, 11);
-    callsign_hashtable[idx_hash].callsign[11] = '\0';
-    callsign_hashtable[idx_hash].hash = hash;
-}
-
-bool hashtable_lookup(ftx_callsign_hash_type_t hash_type, uint32_t hash, char* callsign)
-{
-    uint8_t hash_shift = (hash_type == FTX_CALLSIGN_HASH_10_BITS) ? 12 : (hash_type == FTX_CALLSIGN_HASH_12_BITS ? 10 : 0);
-    uint16_t hash10 = (hash >> (12 - hash_shift)) & 0x3FFu;
-    int idx_hash = (hash10 * 23) % CALLSIGN_HASHTABLE_SIZE;
-    while (callsign_hashtable[idx_hash].callsign[0] != '\0')
-    {
-        if (((callsign_hashtable[idx_hash].hash & 0x3FFFFFu) >> hash_shift) == hash)
-        {
-            strcpy(callsign, callsign_hashtable[idx_hash].callsign);
-            return true;
-        }
-        // Move on to check the next entry in hash table
-        idx_hash = (idx_hash + 1) % CALLSIGN_HASHTABLE_SIZE;
-    }
-    callsign[0] = '\0';
-    return false;
-}
-
-ftx_callsign_hash_interface_t hash_if = {
-    .lookup_hash = hashtable_lookup,
-    .save_hash = hashtable_add
-};
 
 void decode(const monitor_t* mon, struct tm* tm_slot_start)
 {
@@ -226,7 +137,7 @@ void decode(const monitor_t* mon, struct tm* tm_slot_start)
                 snr, time_sec, freq_hz, text);
         }
     }
-    LOG(LOG_INFO, "Decoded %d messages, callsign hashtable size %d\n", num_decoded, callsign_hashtable_size);
+    LOG(LOG_INFO, "Decoded %d messages, callsign hashtable size %d\n", num_decoded, hashtable_get_size());
     hashtable_cleanup(10);
 }
 
@@ -331,7 +242,7 @@ int main(int argc, char** argv)
         .protocol = protocol
     };
 
-    hashtable_init();
+    hashtable_init(256);
 
     monitor_init(&mon, &mon_cfg);
     LOG(LOG_DEBUG, "Waterfall allocated %d symbols\n", mon.wf.max_blocks);
