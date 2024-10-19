@@ -179,7 +179,7 @@ int dd_to_int(const char* str, int length)
 }
 
 // Convert a 2 digit integer to string
-char* int_to_dd(char* str, int value, int width, bool full_sign)
+void int_to_dd(char* str, int value, int width, bool full_sign)
 {
     if (value < 0)
     {
@@ -209,8 +209,7 @@ char* int_to_dd(char* str, int value, int width, bool full_sign)
         value -= digit * divisor;
         divisor /= 10;
     }
-    *str++ = 0; // Add zero terminator
-    return str;
+    *str = 0; // Add zero terminator
 }
 
 char charn(int c, ft8_char_table_e table)
