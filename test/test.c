@@ -124,6 +124,9 @@ void test_std_msg(const char* call_to_tx, const char* call_de_tx, const char* ex
     char call_de[14];
     char extra[14];
     ftx_message_rc_t rc_decode = ftx_message_decode_std(&msg, &hash_if, call_to, call_de, extra);
+    if (starts_with(call_to_tx, "CQ_")) {
+        call_to[2] = '_';
+    }
     CHECK(rc_decode == FTX_MESSAGE_RC_OK);
     printf("Decoded [%s] [%s] [%s]\n", call_to, call_de, extra);
     CHECK(0 == strcmp(call_to, call_to_tx));
@@ -173,7 +176,7 @@ int main()
     // test1();
     // test4();
     const char* callsigns[] = { "YL3JG", "W1A", "W1A/R", "W5AB", "W8ABC", "DE6ABC", "DE6ABC/R", "DE7AB", "DE9A", "3DA0X", "3DA0XYZ", "3DA0XYZ/R", "3XZ0AB", "3XZ0A" };
-    const char* tokens[] = { "CQ", "QRZ" };
+    const char* tokens[] = { "CQ", "QRZ", "CQ_123", "CQ_000", "CQ_POTA", "CQ_SA", "CQ_O", "CQ_ASD" };
     const char* grids[] = { "KO26", "RR99", "AA00", "RR09", "AA01", "RRR", "RR73", "73", "R+10", "R+05", "R-12", "R-02", "+10", "+05", "-02", "-02", "" };
 
     for (int idx_grid = 0; idx_grid < SIZEOF_ARRAY(grids); ++idx_grid)

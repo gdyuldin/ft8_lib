@@ -690,10 +690,38 @@ static int32_t pack28(const char* callsign, const ftx_callsign_hash_interface_t*
 
     if (starts_with(callsign, "CQ_") && length < 8)
     {
-        int nnum = 0, nlet = 0;
+        int nlet = 0;
 
-        // TODO: decode CQ_nnn or CQ_abcd
-        LOG(LOG_WARN, "CQ_nnn/CQ_abcd detected, not implemented\n");
+        char *rest = callsign + 3;
+        uint8_t rest_len = strlen(rest);
+        uint8_t correct = 1;
+        if (rest_len == 3) {
+            for (uint8_t i=0; i < rest_len; i++) {
+                if ((rest[i] < '0') || (rest[i] > '9')) {
+                    correct = 0;
+                    break;
+                }
+            }
+            if (correct) {
+                return atoi(rest) + 3;
+            }
+        }
+        correct = 1;
+        if ((rest_len >= 1) || (rest_len <=4)) {
+            for (uint8_t i=0; i < rest_len; i++) {
+                int n = nchar(rest[i], FT8_CHAR_TABLE_LETTERS_SPACE);
+                if (n == -1) {
+                    correct = 0;
+                    break;
+                }
+                nlet = nlet * 27 + n;
+            }
+            if (correct) {
+                return nlet + 1003u;
+            }
+        }
+
+        LOG(LOG_WARN, "Wrong CQ_nnn/CQ_abcd detected\n");
         return -1;
     }
 
