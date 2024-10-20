@@ -89,6 +89,8 @@ int ftx_find_candidates(const ftx_waterfall_t* power, int num_candidates, ftx_ca
 /// @return True if the decoding was successful, false otherwise (check status for details)
 bool ftx_decode_candidate(const ftx_waterfall_t* power, const ftx_candidate_t* cand, int max_iterations, ftx_message_t* message, ftx_decode_status_t* status);
 
+void ftx_delete_candidates(int *idx, int idx_size, ftx_candidate_t heap[], int *heap_size);
+
 #ifdef __cplusplus
 }
 #endif

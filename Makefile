@@ -10,7 +10,7 @@ COMMON_OBJ = $(patsubst %.c,$(BUILD_DIR)/%.o,$(COMMON_SRC))
 FFT_SRC  = $(wildcard fft/*.c)
 FFT_OBJ  = $(patsubst %.c,$(BUILD_DIR)/%.o,$(FFT_SRC))
 
-TARGETS  = gen_ft8 decode_ft8 test_ft8 $(BUILD_DIR)/libft8.so
+TARGETS  = gen_ft8 decode_ft8 decode_ft8_live test_ft8 $(BUILD_DIR)/libft8.so
 
 CFLAGS   = -fsanitize=address -O3 -ggdb3 -fPIC
 CPPFLAGS = -std=c11 -I.
@@ -41,6 +41,9 @@ gen_ft8: $(BUILD_DIR)/demo/gen_ft8.o $(FT8_OBJ) $(COMMON_OBJ) $(FFT_OBJ)
 	$(CC) $(LDFLAGS) -o $@ $^
 
 decode_ft8: $(BUILD_DIR)/demo/decode_ft8.o $(FT8_OBJ) $(COMMON_OBJ) $(FFT_OBJ)
+	$(CC) $(LDFLAGS) -o $@ $^
+
+decode_ft8_live: $(BUILD_DIR)/demo/decode_ft8_live.o $(FT8_OBJ) $(COMMON_OBJ) $(FFT_OBJ)
 	$(CC) $(LDFLAGS) -o $@ $^
 
 test_ft8: $(BUILD_DIR)/test/test.o $(FT8_OBJ)

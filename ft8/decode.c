@@ -120,7 +120,6 @@ static int ft8_sync_score(const ftx_waterfall_t* wf, const ftx_candidate_t* cand
 
     if (num_average > 0)
         score /= num_average;
-
     return score;
 }
 
@@ -385,6 +384,16 @@ bool ftx_decode_candidate(const ftx_waterfall_t* wf, const ftx_candidate_t* cand
 
     // LOG(LOG_DEBUG, "Decoded message (CRC %04x), trying to unpack...\n", status->crc_extracted);
     return true;
+}
+
+void ftx_delete_candidates(int *idx, int idx_size, ftx_candidate_t heap[], int* heap_size)
+{
+    for (int i = 0; i < idx_size; i++)
+    {
+        --(*heap_size);
+        heap[idx[i]] = heap[*heap_size];
+    }
+    heapify_down(heap, *heap_size);
 }
 
 static float max2(float a, float b)
