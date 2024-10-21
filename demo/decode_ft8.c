@@ -20,13 +20,27 @@
 #include <ft8/debug.h>
 
 const int kMin_score = 10; // Minimum sync score threshold for candidates
-const int kMax_candidates = 140;
+const int kMax_candidates = 200;
 const int kLDPC_iterations = 25;
 
 const int kMax_decoded_messages = 50;
 
 const int kFreq_osr = 2; // Frequency oversampling rate (bin subdivision)
-const int kTime_osr = 2; // Time oversampling rate (symbol subdivision)
+const int kTime_osr = 4; // Time oversampling rate (symbol subdivision)
+
+
+static int get_message_snr(const ftx_waterfall_t* wf, const ftx_candidate_t *candidate, ftx_message_t *msg) {
+    uint8_t n_tones = (wf->protocol == FTX_PROTOCOL_FT4) ? FT4_NN : FT8_NN;
+    uint8_t tones[n_tones];
+
+    if (wf->protocol == FTX_PROTOCOL_FT4) {
+        ft4_encode(msg->payload, tones);
+    } else {
+        ft8_encode(msg->payload, tones);
+    }
+    return ftx_get_snr(wf, candidate, tones, n_tones);
+}
+
 
 void usage(const char* error_msg)
 {
@@ -131,10 +145,13 @@ void decode(const monitor_t* mon, struct tm* tm_slot_start)
             }
 
             // Fake WSJT-X-like output for now
-            float snr = cand->score * 0.5f; // TODO: compute better approximation of SNR
+            float snr;
+            snr = cand->score * 0.5f; // TODO: compute better approximation of SNR
+            snr = get_message_snr(wf, cand, &message);
             printf("%02d%02d%02d %+05.1f %+4.2f %4.0f ~  %s\n",
                 tm_slot_start->tm_hour, tm_slot_start->tm_min, tm_slot_start->tm_sec,
                 snr, time_sec, freq_hz, text);
+
         }
     }
     LOG(LOG_INFO, "Decoded %d messages, callsign hashtable size %d\n", num_decoded, hashtable_get_size());

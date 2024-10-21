@@ -58,6 +58,40 @@ static const WF_ELEM_T* get_cand_mag(const ftx_waterfall_t* wf, const ftx_candid
     return wf->mag + offset;
 }
 
+int ftx_get_snr(const ftx_waterfall_t* wf, const ftx_candidate_t* candidate, uint8_t *tones, uint8_t n_tones) {
+    int signal = 0;
+    int noise = 0;
+    int num_average = 0;
+    int n_items = (wf->protocol == FTX_PROTOCOL_FT8) ? 8 : 4;
+    const WF_ELEM_T* mag_cand = get_cand_mag(wf, candidate);
+    for (int i = 0; i < n_tones; i++) {
+
+        int block_abs = candidate->time_offset + i; // relative to the captured signal
+        // Check for time boundaries
+        if (block_abs < 0)
+            continue;
+        if (block_abs >= wf->num_blocks)
+            break;
+
+        // Get the pointer to symbol 'block' of the candidate
+        const WF_ELEM_T* wf_el = mag_cand + (i * wf->block_stride);
+
+        int min_val = 255;
+        for (int s = 0; s < n_items; s++) {
+            if (s == tones[i]) {
+                signal += wf_el[s];
+            } else {
+                if (min_val > wf_el[s]) {
+                    min_val = wf_el[s];
+                }
+            }
+        }
+        noise += min_val;
+        num_average++;
+    }
+    return (signal - noise) / (2 * num_average) - 26;
+}
+
 static int ft8_sync_score(const ftx_waterfall_t* wf, const ftx_candidate_t* candidate)
 {
     int score = 0;

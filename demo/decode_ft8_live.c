@@ -29,72 +29,16 @@ const int kFreq_osr = 2; // Frequency oversampling rate (bin subdivision)
 const int kTime_osr = 4; // Time oversampling rate (symbol subdivision)
 
 
-static void swap(int* xp, int* yp) {
-    int temp = *xp;
-    *xp = *yp;
-    *yp = temp;
-}
+static int get_message_snr(const ftx_waterfall_t* wf, const ftx_candidate_t *candidate, ftx_message_t *msg) {
+    uint8_t n_tones = (wf->protocol == FTX_PROTOCOL_FT4) ? FT4_NN : FT8_NN;
+    uint8_t tones[n_tones];
 
-// Function to perform Selection Sort
-static void selectionSort(int arr[], int n) {
-    int i, j, min_idx;
-
-    for (i = 0; i < n-1; i++) {
-        min_idx = i;
-
-        for (j = i+1; j < n; j++)
-          if (arr[j] < arr[min_idx])
-            min_idx = j;
-
-        swap(&arr[min_idx], &arr[i]);
+    if (wf->protocol == FTX_PROTOCOL_FT4) {
+        ft4_encode(msg->payload, tones);
+    } else {
+        ft8_encode(msg->payload, tones);
     }
-}
-
-
-int ftx_get_snr(const ftx_waterfall_t* wf, const ftx_candidate_t *candidate) {
-    //array with wf.num_blocks (row of watterfall) x 8*wf.freq_osr (signals witdh)
-    //Get this waterfall zoom on the candidate symbols
-    //Sort max to min and calculate max/min = ft8snr and return with substract of -26db for get snr on 2500hz
-
-    int     m = wf->freq_osr * wf->time_osr;
-    int     l = 8 * m;
-    // int     n = 2 * m;
-    float   minC = 0, maxC = 0;
-    int     i = 0;
-    int low_part = 2;
-    int high_part = 1;
-
-    while (i < wf->num_blocks) {
-        int candidate_zoom[l];
-
-        for (int j = 0; j< 8; j++) {
-            for(int k = 0; k<m; k++) {
-                candidate_zoom[(j*m)+k] = wf->mag[( (i * wf->block_stride) + candidate->freq_offset + candidate->freq_sub + (j*m) + k )];
-            }
-        }
-
-        selectionSort(candidate_zoom, l);
-
-        for (int j = 0; j < low_part * m; j++) {
-            minC += candidate_zoom[j];
-        }
-
-        for (int j = l - 1; j >= l - (m * high_part); j--) {
-            maxC += candidate_zoom[j];
-        }
-
-        i++;
-    }
-
-    minC = minC / (wf->num_blocks*wf->freq_osr*wf->time_osr*low_part);
-    maxC = maxC / (wf->num_blocks*wf->freq_osr*wf->time_osr*high_part);
-
-    int min = (int)(minC/2 - 240);
-    int max = (int)(maxC/2 - 240);
-
-    int snr= max - min - 26;
-
-    return snr;
+    return ftx_get_snr(wf, candidate, tones, n_tones);
 }
 
 
@@ -124,9 +68,10 @@ int decode_messages(const monitor_t* mon, int *num_candidates, ftx_candidate_t *
     {
         const ftx_candidate_t* cand = &candidate_list[idx];
 
-        if ((cand->time_offset + 70) > wf->num_blocks) {
+        if ((cand->time_offset + 79 - 7) > wf->num_blocks) {
             continue;
         }
+        to_delete_idx[to_delete_size++] = idx;
 
         ftx_message_t message;
         ftx_decode_status_t status;
@@ -139,11 +84,9 @@ int decode_messages(const monitor_t* mon, int *num_candidates, ftx_candidate_t *
             else if (status.crc_calculated != status.crc_extracted)
             {
                 LOG(LOG_DEBUG, "CRC mismatch!\n");
-                to_delete_idx[to_delete_size++] = idx;
             }
             continue;
         }
-        to_delete_idx[to_delete_size++] = idx;
 
         float freq_hz = (mon->min_bin + cand->freq_offset + (float)cand->freq_sub / wf->freq_osr) / mon->symbol_period;
         float time_sec = (cand->time_offset + (float)cand->time_sub / wf->time_osr) * mon->symbol_period;
@@ -186,11 +129,8 @@ int decode_messages(const monitor_t* mon, int *num_candidates, ftx_candidate_t *
             }
             num_decoded++;
 
-            // Fake WSJT-X-like output for now
-            float snr;
-            snr = cand->score * 0.5f; // TODO: compute better approximation of SNR
-            snr = ftx_get_snr(wf, cand);
-            printf("%02d%02d%02d %+05.1f %+4.2f %4.0f ~  %s\n",
+            float snr = get_message_snr(wf, cand, &message);
+            printf("%02d%02d%02d %5.0f %4.1f %4.0f ~  %s\n",
                 tm_slot_start->tm_hour, tm_slot_start->tm_min, tm_slot_start->tm_sec,
                 snr, time_sec, freq_hz, text);
 
@@ -272,9 +212,10 @@ int main(int argc, char** argv)
     int num_samples = slot_period * sample_rate;
     float signal[num_samples];
 
-    int decode_block_stride = 10;
-    int early_ldpc_iterations = 1;
-    float find_candidates_at_frac = 0.7f;
+    int decode_block_stride = 2;
+    int early_ldpc_iterations = 25;
+    float find_candidates_at_frac = ((FT8_NN - FT8_LENGTH_SYNC - 5) * FT8_SYMBOL_PERIOD) / FT8_SLOT_TIME;
+    printf("find_candidates_at_frac: %f\n", find_candidates_at_frac);
     int find_candidates_at = (float)num_samples * find_candidates_at_frac;
     int num_decoded = 0;
     bool is_live = false;
@@ -369,17 +310,18 @@ int main(int argc, char** argv)
             monitor_process(&mon, signal + frame_pos);
 
             if (frame_pos > find_candidates_at) {
-                if (block_n == 0) {
-                    if (num_candidates == 0) {
-                        num_candidates = find_candidates(&mon, candidate_list, kMax_candidates);
-                    } else {
-                        num_decoded += decode_messages(&mon, &num_candidates, candidate_list, decoded, decoded_hashtable, early_ldpc_iterations, &tm_slot_start);
-
-                    }
+                if (num_candidates == 0) {
+                    num_candidates = find_candidates(&mon, candidate_list, kMax_candidates);
+                } else if (block_n == 0) {
+                    int early_decoded = decode_messages(&mon, &num_candidates, candidate_list, decoded, decoded_hashtable, early_ldpc_iterations, &tm_slot_start);
+                    num_decoded += early_decoded;
+                    // printf("early decoded: %i\n", early_decoded);
                 }
             }
         }
-        decode_messages(&mon, &num_candidates, candidate_list, decoded, decoded_hashtable, kLDPC_iterations, &tm_slot_start);
+        // printf("early decode end===============\n");
+        // printf("Early decoded: %i\n", num_decoded);
+        num_decoded += decode_messages(&mon, &num_candidates, candidate_list, decoded, decoded_hashtable, kLDPC_iterations, &tm_slot_start);
         fprintf(stderr, "\n");
         LOG(LOG_DEBUG, "Waterfall accumulated %d symbols\n", mon.wf.num_blocks);
         LOG(LOG_INFO, "Max magnitude: %.1f dB\n", mon.max_mag);
