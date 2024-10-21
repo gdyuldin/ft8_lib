@@ -189,7 +189,19 @@ static int ft4_sync_score(const ftx_waterfall_t* wf, const ftx_candidate_t* cand
 int ftx_find_candidates(const ftx_waterfall_t* wf, int num_candidates, ftx_candidate_t heap[], int min_score)
 {
     int (*sync_fun)(const ftx_waterfall_t*, const ftx_candidate_t*) = (wf->protocol == FTX_PROTOCOL_FT4) ? ft4_sync_score : ft8_sync_score;
-    int num_tones = (wf->protocol == FTX_PROTOCOL_FT4) ? 4 : 8;
+    int num_tones;
+    int time_offset_min;
+    int time_offset_max;
+
+    if (wf->protocol == FTX_PROTOCOL_FT4) {
+        num_tones = 4;
+        time_offset_min = -FT4_LENGTH_SYNC;
+        time_offset_max = FT4_SLOT_TIME / FT4_SYMBOL_PERIOD - FT4_NN + FT4_LENGTH_SYNC;
+    } else {
+        num_tones = 8;
+        time_offset_min = -FT8_LENGTH_SYNC;
+        time_offset_max = FT8_SLOT_TIME / FT8_SYMBOL_PERIOD - FT8_NN + FT8_LENGTH_SYNC;
+    }
 
     int heap_size = 0;
     ftx_candidate_t candidate;
@@ -201,7 +213,7 @@ int ftx_find_candidates(const ftx_waterfall_t* wf, int num_candidates, ftx_candi
     {
         for (candidate.freq_sub = 0; candidate.freq_sub < wf->freq_osr; ++candidate.freq_sub)
         {
-            for (candidate.time_offset = -10; candidate.time_offset < 20; ++candidate.time_offset)
+            for (candidate.time_offset = time_offset_min; candidate.time_offset < time_offset_max; ++candidate.time_offset)
             {
                 for (candidate.freq_offset = 0; (candidate.freq_offset + num_tones - 1) < wf->num_bins; ++candidate.freq_offset)
                 {
