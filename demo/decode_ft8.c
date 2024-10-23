@@ -41,6 +41,18 @@ static int get_message_snr(const ftx_waterfall_t* wf, const ftx_candidate_t *can
     return ftx_get_snr(wf, candidate, tones, n_tones);
 }
 
+static int get_message_snr_and_mute(ftx_waterfall_t* wf, const ftx_candidate_t *candidate, ftx_message_t *msg) {
+    uint8_t n_tones = (wf->protocol == FTX_PROTOCOL_FT4) ? FT4_NN : FT8_NN;
+    uint8_t tones[n_tones];
+
+    if (wf->protocol == FTX_PROTOCOL_FT4) {
+        ft4_encode(msg->payload, tones);
+    } else {
+        ft8_encode(msg->payload, tones);
+    }
+    return ftx_get_snr_and_mute(wf, candidate, tones, n_tones);
+}
+
 
 void usage(const char* error_msg)
 {
@@ -54,10 +66,11 @@ void usage(const char* error_msg)
 
 void decode(const monitor_t* mon, struct tm* tm_slot_start)
 {
-    const ftx_waterfall_t* wf = &mon->wf;
+    ftx_waterfall_t* wf = &mon->wf;
     // Find top candidates by Costas sync score and localize them in time and frequency
     ftx_candidate_t candidate_list[kMax_candidates];
     int num_candidates = ftx_find_candidates(wf, kMax_candidates, candidate_list, kMin_score);
+    printf("num_candidates: %i\n", num_candidates);
 
     // Hash table for decoded messages (to check for duplicates)
     int num_decoded = 0;
@@ -76,7 +89,7 @@ void decode(const monitor_t* mon, struct tm* tm_slot_start)
         const ftx_candidate_t* cand = &candidate_list[idx];
 
         float freq_hz = (mon->min_bin + cand->freq_offset + (float)cand->freq_sub / wf->freq_osr) / mon->symbol_period;
-        float time_sec = (cand->time_offset + (float)cand->time_sub / wf->time_osr) * mon->symbol_period;
+        float time_sec = (cand->time_offset + (float)(cand->time_sub + 0.5) / wf->time_osr) * mon->symbol_period;
 
 #ifdef WATERFALL_USE_PHASE
         // int resynth_len = 12000 * 16;
@@ -105,7 +118,7 @@ void decode(const monitor_t* mon, struct tm* tm_slot_start)
             }
             continue;
         }
-
+        float snr = get_message_snr_and_mute(wf, cand, &message);
         LOG(LOG_DEBUG, "Checking hash table for %4.1fs / %4.1fHz [%d]...\n", time_sec, freq_hz, cand->score);
         int idx_hash = message.hash % kMax_decoded_messages;
         bool found_empty_slot = false;
@@ -145,12 +158,12 @@ void decode(const monitor_t* mon, struct tm* tm_slot_start)
             }
 
             // Fake WSJT-X-like output for now
-            float snr;
-            snr = cand->score * 0.5f; // TODO: compute better approximation of SNR
-            snr = get_message_snr(wf, cand, &message);
-            printf("%02d%02d%02d %+05.1f %+4.2f %4.0f ~  %s\n",
+            // snr = cand->score * 0.5f; // TODO: compute better approximation of SNR
+            // snr = get_message_snr(wf, cand, &message);
+            // mute_decoded(wf, cand, &message);
+            printf("%02d%02d%02d %5.0f %4.1f %4.0f ~  %s\n",
                 tm_slot_start->tm_hour, tm_slot_start->tm_min, tm_slot_start->tm_sec,
-                snr, time_sec, freq_hz, text);
+                snr, time_sec - 0.65f, freq_hz, text);
 
         }
     }

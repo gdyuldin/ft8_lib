@@ -41,6 +41,18 @@ static int get_message_snr(const ftx_waterfall_t* wf, const ftx_candidate_t *can
     return ftx_get_snr(wf, candidate, tones, n_tones);
 }
 
+static int get_message_snr_and_mute(ftx_waterfall_t* wf, const ftx_candidate_t *candidate, ftx_message_t *msg) {
+    uint8_t n_tones = (wf->protocol == FTX_PROTOCOL_FT4) ? FT4_NN : FT8_NN;
+    uint8_t tones[n_tones];
+
+    if (wf->protocol == FTX_PROTOCOL_FT4) {
+        ft4_encode(msg->payload, tones);
+    } else {
+        ft8_encode(msg->payload, tones);
+    }
+    return ftx_get_snr_and_mute(wf, candidate, tones, n_tones);
+}
+
 
 void usage(const char* error_msg)
 {
@@ -68,7 +80,7 @@ int decode_messages(const monitor_t* mon, int *num_candidates, ftx_candidate_t *
     {
         const ftx_candidate_t* cand = &candidate_list[idx];
 
-        if ((cand->time_offset + 79 - 7) > wf->num_blocks) {
+        if ((cand->time_offset + 79-7) > wf->num_blocks) {
             continue;
         }
         to_delete_idx[to_delete_size++] = idx;
@@ -87,6 +99,8 @@ int decode_messages(const monitor_t* mon, int *num_candidates, ftx_candidate_t *
             }
             continue;
         }
+
+        float snr = get_message_snr(wf, cand, &message);
 
         float freq_hz = (mon->min_bin + cand->freq_offset + (float)cand->freq_sub / wf->freq_osr) / mon->symbol_period;
         float time_sec = (cand->time_offset + (float)cand->time_sub / wf->time_osr) * mon->symbol_period;
@@ -129,10 +143,9 @@ int decode_messages(const monitor_t* mon, int *num_candidates, ftx_candidate_t *
             }
             num_decoded++;
 
-            float snr = get_message_snr(wf, cand, &message);
             printf("%02d%02d%02d %5.0f %4.1f %4.0f ~  %s\n",
                 tm_slot_start->tm_hour, tm_slot_start->tm_min, tm_slot_start->tm_sec,
-                snr, time_sec, freq_hz, text);
+                snr, time_sec - 0.7f, freq_hz, text);
 
         }
     }
@@ -309,7 +322,7 @@ int main(int argc, char** argv)
             // Process the waveform data frame by frame - you could have a live loop here with data from an audio device
             monitor_process(&mon, signal + frame_pos);
 
-            if (frame_pos > find_candidates_at) {
+            if (mon.wf.num_blocks > 79-7) {
                 if (num_candidates == 0) {
                     num_candidates = find_candidates(&mon, candidate_list, kMax_candidates);
                 } else if (block_n == 0) {

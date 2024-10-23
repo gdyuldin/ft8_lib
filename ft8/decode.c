@@ -92,6 +92,48 @@ int ftx_get_snr(const ftx_waterfall_t* wf, const ftx_candidate_t* candidate, uin
     return (signal - noise) / (2 * num_average) - 26;
 }
 
+int ftx_get_snr_and_mute(ftx_waterfall_t* wf, const ftx_candidate_t* candidate, uint8_t *tones, uint8_t n_tones) {
+    int signal = 0;
+    int noise = 0;
+    int num_average = 0;
+    int n_items = (wf->protocol == FTX_PROTOCOL_FT8) ? 8 : 4;
+    WF_ELEM_T* mag_cand = get_cand_mag(wf, candidate);
+    for (int i = 0; i < n_tones; i++) {
+
+        int block_abs = candidate->time_offset + i; // relative to the captured signal
+        // Check for time boundaries
+        if (block_abs < 0)
+            continue;
+        if (block_abs >= wf->num_blocks)
+            break;
+
+        // Get the pointer to symbol 'block' of the candidate
+        WF_ELEM_T* wf_el = mag_cand + (i * wf->block_stride);
+
+        int min_val = 255;
+        for (int s = 0; s < n_items; s++) {
+            if (s == tones[i]) {
+                signal += wf_el[s];
+            } else {
+                if (min_val > wf_el[s]) {
+                    min_val = wf_el[s];
+                }
+            }
+        }
+        noise += min_val;
+        num_average++;
+
+        // Mute
+        if (tones[i] == 0)
+            wf_el[0] = wf_el[1];
+        else if (tones[i] == 7)
+            wf_el[7] = wf_el[6];
+        else
+            wf_el[tones[i]] = wf_el[tones[i]+1] / 2 + wf_el[tones[i]-1] / 2;
+    }
+    return (signal - noise) / (2 * num_average) - 26;
+}
+
 static int ft8_sync_score(const ftx_waterfall_t* wf, const ftx_candidate_t* candidate)
 {
     int score = 0;
@@ -121,7 +163,7 @@ static int ft8_sync_score(const ftx_waterfall_t* wf, const ftx_candidate_t* cand
             // score += 8 * p8[kFT8_Costas_pattern[k]] -
             //          p8[0] - p8[1] - p8[2] - p8[3] -
             //          p8[4] - p8[5] - p8[6] - p8[7];
-            // ++num_average;
+            // num_average += 7;
 
             // Check only the neighbors of the expected symbol frequency- and time-wise
             int sm = kFT8_Costas_pattern[k]; // Index of the expected bin
@@ -252,7 +294,6 @@ int ftx_find_candidates(const ftx_waterfall_t* wf, int num_candidates, ftx_candi
                 for (candidate.freq_offset = 0; (candidate.freq_offset + num_tones - 1) < wf->num_bins; ++candidate.freq_offset)
                 {
                     candidate.score = sync_fun(wf, &candidate);
-
                     if (candidate.score < min_score)
                         continue;
 
@@ -452,6 +493,10 @@ static float max4(float a, float b, float c, float d)
     return max2(max2(a, b), max2(c, d));
 }
 
+static inline float sum4(float a, float b, float c, float d) {
+    return a + b + c + d;
+}
+
 static void heapify_down(ftx_candidate_t heap[], int heap_size)
 {
     // heapify from the root down
@@ -556,7 +601,7 @@ static void ft8_extract_symbol(const WF_ELEM_T* wf, float* logl)
     logl[2] = k * (-a[0] / 4 + (a[1] - a[6]) / 8 + a[2] / 3 + a[3] / 24 + a[4] * 7 / 24 - a[5] * 5 / 18);
 #endif
     // for (int i = 0; i < 8; ++i)
-    //     printf("%d ", WF_ELEM_MAG_INT(wf[i]));
+    //     printf("%d ", WF_ELEM_MAG_INT(wf[kFT8_Gray_map[i]]));
     // for (int i = 0; i < 3; ++i)
     //     printf("%.1f ", logl[i]);
     // printf("\n");

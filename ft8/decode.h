@@ -92,6 +92,8 @@ bool ftx_decode_candidate(const ftx_waterfall_t* power, const ftx_candidate_t* c
 void ftx_delete_candidates(int *idx, int idx_size, ftx_candidate_t heap[], int *heap_size);
 
 int ftx_get_snr(const ftx_waterfall_t* wf, const ftx_candidate_t* candidate, uint8_t *tones, uint8_t n_tones);
+int ftx_get_snr_and_mute(ftx_waterfall_t* wf, const ftx_candidate_t* candidate, uint8_t *tones, uint8_t n_tones);
+
 
 #ifdef __cplusplus
 }
