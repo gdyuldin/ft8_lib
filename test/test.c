@@ -112,6 +112,24 @@ void test3() {
 
 #define TEST_END printf("Test OK\n\n")
 
+
+void msg_to_bitstring(ftx_message_t *msg, char *bitstring)
+{
+    size_t out_pos = 0;
+    for (size_t i = 0; i < sizeof(msg->payload); i++)
+    {
+        for (int8_t j = 7; j >= 0; j--)
+        {
+            bitstring[out_pos] = ((msg->payload[i] >> j) & 1) ? '1' : '0';
+            out_pos++;
+            if (out_pos > 76) {
+                break;
+            }
+        }
+
+    }
+}
+
 void test_std_msg(const char* call_to_tx, const char* call_de_tx, const char* extra_tx)
 {
     ftx_message_t msg;
@@ -156,6 +174,25 @@ void test_msg(const char* message_text, const char* expected, ftx_callsign_hash_
     TEST_END;
 }
 
+void test_encoding(const char* message_text, const char* expected_bits, ftx_callsign_hash_interface_t *hash_if)
+{
+    char bits[78];
+    bits[77] = 0;
+    printf("Testing encoding[%s] -> [%s]\n", message_text, expected_bits);
+
+    ftx_message_t msg;
+    ftx_message_init(&msg);
+
+    ftx_message_rc_t rc_encode = ftx_message_encode(&msg, hash_if, message_text);
+    CHECK(rc_encode == FTX_MESSAGE_RC_OK);
+
+    msg_to_bitstring(&msg, bits);
+    printf("Encoded bits [%s]\n", bits);
+    CHECK(0 == strcmp(expected_bits, bits));
+    // CHECK(1 == 2);
+    TEST_END;
+}
+
 #define SIZEOF_ARRAY(x) (sizeof(x) / sizeof((x)[0]))
 
 int main()
@@ -187,6 +224,10 @@ int main()
     test_msg("CQ EA8/G5LSI", "CQ EA8/G5LSI", NULL);
     test_msg("EA8/G5LSI R2RFE RR73", "<EA8/G5LSI> R2RFE RR73", &hash_if);
     test_msg("R2RFE/P EA8/G5LSI R+12", "R2RFE/P <EA8/G5LSI> R+12", &hash_if);
+    test_msg("CQ SP9HGN/QRP", "CQ SP9HGN/QRP", &hash_if);
+
+    test_encoding("CQ SP9HGN/QRP", "10100001101100000100010110110110001000111000100101000011101110101001100001100", &hash_if);
+    test_encoding("CQ EA8/DK5CR", "00011100010000000000000011110001111100100001011000100100100001100110100001100", &hash_if);
 
     // test_std_msg("YOMAMA", "MYMAMA/QRP", "73");
 

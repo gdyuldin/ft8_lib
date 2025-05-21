@@ -225,8 +225,10 @@ ftx_message_rc_t ftx_message_encode_nonstd(ftx_message_t* msg, ftx_callsign_hash
 
     if ((icq != 0) || (pack_basecall(call_to, len_call_to) < 0))
     {
-        // CQ with non-std call, should use free text (without hash)
-        return FTX_MESSAGE_RC_ERROR_CALLSIGN2;
+        if (pack_basecall(call_de, len_call_de) >= 0) {
+            // CQ with non-std call, should use free text (without hash)
+            return FTX_MESSAGE_RC_ERROR_CALLSIGN2;
+        }
     }
 
     if ((icq == 0) && ((len_call_to < 3)))
@@ -261,7 +263,10 @@ ftx_message_rc_t ftx_message_encode_nonstd(ftx_message_t* msg, ftx_callsign_hash
     else
     {
         iflip = 0;
-        n12 = 0;
+        // fill n12 with hash of call_de
+        if (!save_callsign(hash_if, call_de, NULL, &n12, NULL)) {
+            n12 = 0;
+        }
         call58 = call_de;
     }
 
