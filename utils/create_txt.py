@@ -28,7 +28,7 @@ def main(src_dir: pathlib.Path):
     for file in src_dir.glob("*.wav"):
         print(".", end="", flush=True)
         with reencode(file) as new_file:
-            cmd = shlex.split(f"jt9 -8 {new_file}")
+            cmd = shlex.split(f"jt9 -8 -d 3 {new_file}")
             output = subprocess.check_output(cmd)
 
         txt_path = file.with_suffix(".txt")
