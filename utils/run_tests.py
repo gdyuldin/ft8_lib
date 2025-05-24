@@ -2,22 +2,24 @@
 import argparse
 import os, subprocess
 
+scores = open("scores.csv", "w")
+
 def parse(line):
-    fields = line.strip().split()
-    if not fields:
-        return "", 0
-    if fields[0] != "000000":
-        return "", 0
+    if line.startswith('cand:'):
+        scores.write(line[6:] + '\n')
+    fields = line.split(None, 5)
+    if len(fields) < 5:
+        return "", None
     snr = float(fields[1])
-    freq = fields[3]
-    dest = fields[5] if len(fields) > 5 else ''
-    source = fields[6] if len(fields) > 6 else ''
-    report = fields[7] if len(fields) > 7 else ''
-    if dest and dest[0] == '<' and dest[-1] == '>':
-        dest = '<...>'
-    if source and source[0] == '<' and source[-1] == '>':
-        source = '<...>'
-    return " ".join([dest, source, report]), snr
+    time_offset = float(fields[2])
+    freq = float(fields[3])
+    msg = fields[5].split("  ")[0].strip()
+    return msg, (snr, freq, time_offset)
+
+
+def draw_results(expected, result):
+    canvas = None
+
 
 def main(wav_dir, is_ft4, live):
     wav_files = [os.path.join(wav_dir, f) for f in os.listdir(wav_dir)]
@@ -42,16 +44,16 @@ def main(wav_dir, is_ft4, live):
         result = result.stdout.decode('utf-8').split('\n')
         res_dict = {}
         for r in result:
-            k, snr = parse(r)
+            k, items = parse(r)
             if k:
-                res_dict[k] = snr
+                res_dict[k] =items
 
         expected = open(txt_file).read().split('\n')
         exp_dict = {}
         for r in expected:
-            k, snr = parse(r)
+            k, items = parse(r)
             if k:
-                exp_dict[k] = snr
+                exp_dict[k] = items
 
         extra_decodes = res_dict.keys() - exp_dict.keys()
         missed_decodes = exp_dict.keys() - res_dict.keys()
@@ -60,10 +62,12 @@ def main(wav_dir, is_ft4, live):
             print('Extra decodes: ', list(sorted(extra_decodes)))
         if len(missed_decodes) > 0:
             print('Missed decodes: ', list(sorted(missed_decodes)))
+            for _ in missed_decodes:
+                scores.write('0,1\n')
 
         for k in exp_dict.keys() & res_dict.keys():
-            expected_snrs.append(exp_dict[k])
-            result_snrs.append(res_dict[k])
+            expected_snrs.append(exp_dict[k][0])
+            result_snrs.append(res_dict[k][0])
         n_total += len(exp_dict)
         n_extra += len(extra_decodes)
         n_missed += len(missed_decodes)
