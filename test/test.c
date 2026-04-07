@@ -174,6 +174,25 @@ void test_msg(const char* message_text, const char* expected, ftx_callsign_hash_
     TEST_END;
 }
 
+void test_free_msg(const char* message_text, const char* expected)
+{
+    printf("Testing [%s]\n", message_text);
+
+    ftx_message_t msg;
+    ftx_message_init(&msg);
+
+    ftx_message_rc_t rc_encode = ftx_message_encode_free(&msg, message_text);
+    CHECK(rc_encode == FTX_MESSAGE_RC_OK);
+
+    char message_decoded[12+12+20];
+    ftx_message_rc_t rc_decode = ftx_message_decode(&msg, NULL, message_decoded);
+    CHECK(rc_decode == FTX_MESSAGE_RC_OK);
+    printf("Decoded [%s]\n", message_decoded);
+    CHECK(0 == strcmp(expected, message_decoded));
+    // CHECK(1 == 2);
+    TEST_END;
+}
+
 void test_encoding(const char* message_text, const char* expected_bits, ftx_callsign_hash_interface_t *hash_if)
 {
     char bits[78];
@@ -184,6 +203,25 @@ void test_encoding(const char* message_text, const char* expected_bits, ftx_call
     ftx_message_init(&msg);
 
     ftx_message_rc_t rc_encode = ftx_message_encode(&msg, hash_if, message_text);
+    CHECK(rc_encode == FTX_MESSAGE_RC_OK);
+
+    msg_to_bitstring(&msg, bits);
+    printf("Encoded bits [%s]\n", bits);
+    CHECK(0 == strcmp(expected_bits, bits));
+    // CHECK(1 == 2);
+    TEST_END;
+}
+
+void test_encoding_free(const char* message_text, const char* expected_bits)
+{
+    char bits[78];
+    bits[77] = 0;
+    printf("Testing encoding[%s] -> [%s]\n", message_text, expected_bits);
+
+    ftx_message_t msg;
+    ftx_message_init(&msg);
+
+    ftx_message_rc_t rc_encode = ftx_message_encode_free(&msg, message_text);
     CHECK(rc_encode == FTX_MESSAGE_RC_OK);
 
     msg_to_bitstring(&msg, bits);
@@ -226,8 +264,19 @@ int main()
     test_msg("R2RFE/P EA8/G5LSI R+12", "R2RFE/P <EA8/G5LSI> R+12", &hash_if);
     test_msg("CQ SP9HGN/QRP", "CQ SP9HGN/QRP", &hash_if);
 
+    test_msg("EA8/G5LSI SP9HGN/QRP +10", "<EA8/G5LSI> <SP9HGN/QRP> +10", &hash_if);
+
+    test_msg("CQ PD80LDN", "CQ PD80LDN", NULL);
+
+    test_free_msg("TNX BOB 73 GL", "TNX BOB 73 GL");
+    test_free_msg("UFX KR0123", "UFX KR0123");
+
+    // Nonstandard call
     test_encoding("CQ SP9HGN/QRP", "10100001101100000100010110110110001000111000100101000011101110101001100001100", &hash_if);
     test_encoding("CQ EA8/DK5CR", "00011100010000000000000011110001111100100001011000100100100001100110100001100", &hash_if);
+    test_encoding("CQ PD80LDN", "01000100011100000000000000000000010010011111010101101001110101111011000001100", &hash_if);
+    // Free text
+    test_encoding_free("TNX BOB 73 GL", "01100011111011011100111011100010101001001010111000000111111101010000000000000");
 
     // test_std_msg("YOMAMA", "MYMAMA/QRP", "73");
 

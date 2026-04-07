@@ -28,7 +28,7 @@ static bool lookup_callsign(const ftx_callsign_hash_interface_t* hash_if, ftx_ca
 static int32_t pack_basecall(const char* callsign, int length);
 
 /// Pack a special token, a 22-bit hash code, or a valid base call into a 29-bit integer.
-static int32_t pack28(const char* callsign, const ftx_callsign_hash_interface_t* hash_if, uint8_t* ip);
+static int32_t pack28(const char* callsign, const ftx_callsign_hash_interface_t* hash_if, uint8_t* ip, bool allow_hash);
 
 /// Unpack a callsign from 28+1 bit field in the payload of the standard message (type 1 or type 2).
 /// @param[in] n29     29-bit integer, e.g. n29a or n29b, containing encoded callsign, plus suffix flag (1 bit) as LSB
@@ -158,8 +158,10 @@ ftx_message_rc_t ftx_message_encode_std(ftx_message_t* msg, ftx_callsign_hash_in
 {
     uint8_t ipa, ipb;
 
-    int32_t n28a = pack28(call_to, hash_if, &ipa);
-    int32_t n28b = pack28(call_de, hash_if, &ipb);
+    bool icq = equals(call_to, "CQ") || starts_with(call_to, "CQ_");
+
+    int32_t n28a = pack28(call_to, hash_if, &ipa, true);
+    int32_t n28b = pack28(call_de, hash_if, &ipb, !icq);
     LOG(LOG_DEBUG, "n29a = %d, n29b = %d\n", n28a, n28b);
 
     if (n28a < 0)
@@ -178,7 +180,6 @@ ftx_message_rc_t ftx_message_encode_std(ftx_message_t* msg, ftx_callsign_hash_in
     }
 
     char *slash_de = strchr(call_de, '/');
-    uint8_t icq = (uint8_t)equals(call_to, "CQ");
     if (slash_de && (slash_de - call_de >= 2) && icq && !(equals(slash_de, "/P") || equals(slash_de, "/R")))
     {
         return FTX_MESSAGE_RC_ERROR_CALLSIGN2; // nonstandard call: need a type 4 message
@@ -728,7 +729,7 @@ static int32_t pack_basecall(const char* callsign, int length)
     return -1;
 }
 
-static int32_t pack28(const char* callsign, const ftx_callsign_hash_interface_t* hash_if, uint8_t* ip)
+static int32_t pack28(const char* callsign, const ftx_callsign_hash_interface_t* hash_if, uint8_t* ip, bool allow_hash)
 {
     LOG(LOG_DEBUG, "pack28() callsign [%s]\n", callsign);
     *ip = 0;
@@ -799,7 +800,7 @@ static int32_t pack28(const char* callsign, const ftx_callsign_hash_interface_t*
         return NTOKENS + MAX22 + (uint32_t)n28; // Standard callsign
     }
 
-    if ((length >= 3) && (length <= 11))
+    if ((length >= 3) && (length <= 11) && allow_hash)
     {
         // Treat this as a nonstandard callsign: compute its 22-bit hash
         LOG(LOG_DEBUG, "Encoding as non-standard callsign\n");
