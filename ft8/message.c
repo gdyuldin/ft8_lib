@@ -115,6 +115,10 @@ ftx_message_type_t ftx_message_get_type(const ftx_message_t* msg)
 
 ftx_message_rc_t ftx_message_encode(ftx_message_t* msg, ftx_callsign_hash_interface_t* hash_if, const char* message_text)
 {
+    // Ensure deterministic payload bits for all message types.
+    // Several encoders only touch a subset of bytes/bits.
+    ftx_message_init(msg);
+
     char call_to[12];
     char call_de[12];
     char extra[20];
@@ -336,7 +340,15 @@ ftx_message_rc_t ftx_message_encode_free(ftx_message_t* msg, const char* text)
             rem = rem >> 8;
         }
     }
-    return ftx_message_encode_telemetry(msg, b71);
+    ftx_message_rc_t rc = ftx_message_encode_telemetry(msg, b71);
+    if (rc != FTX_MESSAGE_RC_OK) {
+        return rc;
+    }
+
+    // Free text is i3=0, n3=0. Telemetry encoder sets n3=5; clear it back.
+    msg->payload[8] &= 0xFEu; // n3[2]
+    msg->payload[9] &= 0x07u; // n3[1..0] + i3
+    return FTX_MESSAGE_RC_OK;
 }
 
 ftx_message_rc_t ftx_message_encode_telemetry(ftx_message_t* msg, const uint8_t* telemetry)
@@ -348,6 +360,12 @@ ftx_message_rc_t ftx_message_encode_telemetry(ftx_message_t* msg, const uint8_t*
         msg->payload[i] = (telemetry[i] << 1) | (carry >> 7);
         carry = telemetry[i] & 0x80;
     }
+
+    // Telemetry is i3=0, n3=5 (binary 101).
+    // n3[2] is payload[8].bit0; n3[1..0] are payload[9].bits7..6.
+    msg->payload[8] = (msg->payload[8] & 0xFEu) | 0x01u;
+    msg->payload[9] &= 0x07u; // clear n3 and i3 bits (7..3)
+    msg->payload[9] |= 0x40u; // set bit6 => n3[0]=1, bit7 stays 0 => n3=0b101
     return FTX_MESSAGE_RC_OK;
 }
 
