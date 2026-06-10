@@ -212,6 +212,81 @@ void int_to_dd(char* str, int value, int width, bool full_sign)
     *str = 0; // Add zero terminator
 }
 
+bool chkcall(const char* call)
+{
+    // TODO: trim a str
+
+
+    size_t len = strlen(call);
+    char base_call[len + 1];
+
+    if (len > 11) return false;
+    if (strchr(call, '.')) return false;
+    if (strchr(call, '+')) return false;
+    if (strchr(call, '-')) return false;
+    if (strchr(call, '?')) return false;
+
+    char *slash = strchr(call, '/');
+
+    // if ((len > 6) && !slash) return false;
+
+    if (!slash) {
+        strcpy(base_call, call);
+    } else {
+        uint8_t pre_slash_len = slash - call;
+        uint8_t post_slash_len = len - pre_slash_len - 1;
+        if (pre_slash_len > post_slash_len) {
+            strncpy(base_call, call, pre_slash_len);
+            base_call[pre_slash_len] = '\0';
+        } else {
+            strncpy(base_call, slash + 1, post_slash_len);
+            base_call[post_slash_len] = '\0';
+        }
+    }
+
+    // Base call must be < 7 characters
+    size_t base_call_len = strlen(base_call);
+
+    if (starts_with(base_call, "3DA0") && (base_call_len > 4) && (base_call_len <= 7))
+    {
+        // Work-around for Swaziland prefix: 3DA0XYZ -> 3D0XYZ
+        memcpy(base_call, "3D0", 3);
+        memmove(base_call + 3, base_call + 4, base_call_len - 4);
+        base_call_len--;
+    }
+    else if (starts_with(base_call, "3X") && is_letter(base_call[2]) && base_call_len <= 7)
+    {
+        // Work-around for Guinea prefixes: 3XA0XYZ -> QA0XYZ
+        memcpy(base_call, "Q", 1);
+        memmove(base_call + 1, base_call + 2, base_call_len - 2);
+        base_call_len--;
+    }
+
+    if (base_call_len > 6) return false;
+
+    // One of first two characters (c1 or c2) must be a letter
+    if (!(is_letter(base_call[0]) || is_letter(base_call[1]))) return false;
+
+    // Must have a digit in 2nd or 3rd position
+    int8_t i_pos = -1;
+    if (is_digit(base_call[1])) i_pos = 1;
+    if (is_digit(base_call[2])) i_pos = 2;
+
+    if (i_pos == -1) return false;
+
+    // Callsign must have a suffix of 1-3 letters
+    uint8_t n = 0;
+    for (int8_t i = i_pos + 1; i < base_call_len; i++)
+    {
+        if (!is_letter(base_call[i])) return false;
+        n++;
+    }
+    if ((n < 1) || (n > 3)) {
+        return false;
+    }
+    return true;
+}
+
 char charn(int c, ft8_char_table_e table)
 {
     if ((table != FT8_CHAR_TABLE_ALPHANUM) && (table != FT8_CHAR_TABLE_NUMERIC))

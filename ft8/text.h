@@ -53,6 +53,9 @@ int dd_to_int(const char* str, int length);
 // Convert a 2 digit integer to string
 void int_to_dd(char* str, int value, int width, bool full_sign);
 
+// Check that callsign is standard
+bool chkcall(const char *call);
+
 typedef enum
 {
     FT8_CHAR_TABLE_FULL,                 // table[42] " 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ+-./?"

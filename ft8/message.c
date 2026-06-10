@@ -119,42 +119,50 @@ ftx_message_rc_t ftx_message_encode(ftx_message_t* msg, ftx_callsign_hash_interf
     // Several encoders only touch a subset of bytes/bits.
     ftx_message_init(msg);
 
-    char call_to[12];
-    char call_de[12];
-    char extra[20];
-
-    const char* parse_position = message_text;
-    parse_position = copy_token(call_to, 12, parse_position);
-    parse_position = copy_token(call_de, 12, parse_position);
-    parse_position = copy_token(extra, 20, parse_position);
-
-    if (call_to[11] != '\0')
+    char message_text_clean[64];
+    fmtmsg(message_text_clean, message_text);
+    uint8_t nwords = 1;
+    for (uint8_t i = 0; i < strlen(message_text_clean); i++)
     {
-        // token too long
-        return FTX_MESSAGE_RC_ERROR_CALLSIGN1;
-    }
-    if (call_de[11] != '\0')
-    {
-        // token too long
-        return FTX_MESSAGE_RC_ERROR_CALLSIGN2;
-    }
-    if (extra[19] != '\0')
-    {
-        // token too long
-        return FTX_MESSAGE_RC_ERROR_GRID;
+        if (message_text_clean[i] == ' ') nwords++;
     }
 
     ftx_message_rc_t rc;
-    rc = ftx_message_encode_std(msg, hash_if, call_to, call_de, extra);
-    if (rc == FTX_MESSAGE_RC_OK)
-        return rc;
-    rc = ftx_message_encode_nonstd(msg, hash_if, call_to, call_de, extra);
-    if (rc == FTX_MESSAGE_RC_OK)
-        return rc;
-    rc = ftx_message_encode_free(msg, message_text);
-    if (rc == FTX_MESSAGE_RC_OK)
-        return rc;
+    if ((nwords > 1) && (nwords < 4)) {
 
+        char call_to[12];
+        char call_de[12];
+        char extra[20];
+
+        const char* parse_position = message_text;
+        parse_position = copy_token(call_to, 12, parse_position);
+        parse_position = copy_token(call_de, 12, parse_position);
+        parse_position = copy_token(extra, 20, parse_position);
+
+        if (call_to[11] != '\0')
+        {
+            // token too long
+            return FTX_MESSAGE_RC_ERROR_CALLSIGN1;
+        }
+        if (call_de[11] != '\0')
+        {
+            // token too long
+            return FTX_MESSAGE_RC_ERROR_CALLSIGN2;
+        }
+        if (extra[19] != '\0')
+        {
+            // token too long
+            return FTX_MESSAGE_RC_ERROR_GRID;
+        }
+
+        rc = ftx_message_encode_std(msg, hash_if, call_to, call_de, extra);
+        if (rc == FTX_MESSAGE_RC_OK)
+            return rc;
+        rc = ftx_message_encode_nonstd(msg, hash_if, call_to, call_de, extra);
+        if (rc == FTX_MESSAGE_RC_OK)
+            return rc;
+    }
+    rc = ftx_message_encode_free(msg, message_text);
     return rc;
 }
 
@@ -172,6 +180,10 @@ ftx_message_rc_t ftx_message_encode_std(ftx_message_t* msg, ftx_callsign_hash_in
         return FTX_MESSAGE_RC_ERROR_CALLSIGN1;
     if (n28b < 0)
         return FTX_MESSAGE_RC_ERROR_CALLSIGN2;
+
+    if (!chkcall(call_de)) {
+        return FTX_MESSAGE_RC_ERROR_CALLSIGN2;
+    }
 
     uint8_t i3 = 1; // No suffix or /R
     if (ends_with(call_to, "/P") || ends_with(call_de, "/P"))
@@ -251,10 +263,13 @@ ftx_message_rc_t ftx_message_encode_nonstd(ftx_message_t* msg, ftx_callsign_hash
     if (icq == 0)
     {
         // choose which of the callsigns to encode as plain-text (58 bits) or hash (12 bits)
-        iflip = 0; // call_de will be sent plain-text
-        if (call_de[0] == '<' && call_de[len_call_to - 1] == '>')
-        {
-            iflip = 1;
+        if (call_to[0] == '<' && call_to[len_call_to - 1] == '>') {
+            iflip = 0; // call_de will be sent plain-text
+        } else if (call_de[0] == '<' && call_de[len_call_de - 1] == '>') {
+            iflip = 1; // call_to will be sent plain-text
+        } else {
+            // One of callsign should be with <>
+            return FTX_MESSAGE_RC_ERROR_CALLSIGN1;
         }
 
         const char* call12;
@@ -1053,7 +1068,8 @@ static int unpackgrid(uint16_t igrid4, uint8_t ir, char* extra)
         if (ir > 0)
         {
             // In case of ir=1 add an "R " before grid
-            dst = stpcpy(dst, "R ");
+            // For some reasons stpcpy returns a wrong pointer
+            dst = strcpy(dst, "R ") + 2;
         }
 
         uint16_t n = igrid4;
